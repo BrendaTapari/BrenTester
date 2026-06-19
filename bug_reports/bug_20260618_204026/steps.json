@@ -1,0 +1,65 @@
+[
+  {
+    "action": "click",
+    "description": "Click en div 'Un auto,\nmuchos propósitos\nALQUILA YA!'",
+    "selector": ".relative.z-10",
+    "tag": "div",
+    "text": "Un auto,\nmuchos propósitos\nALQUILA YA!",
+    "timestamp": 1781825921765,
+    "url": "https://luxdrive-app.vercel.app/"
+  },
+  {
+    "action": "click",
+    "description": "Click en button 'ALQUILA YA!'",
+    "selector": "[aria-label=\"ALQUILA YA!\"]",
+    "tag": "button",
+    "text": "ALQUILA YA!",
+    "timestamp": 1781825923318,
+    "url": "https://luxdrive-app.vercel.app/"
+  },
+  {
+    "action": "click",
+    "description": "Click en button 'viernes, 19 de junio de 2026'",
+    "selector": "[aria-label=\"viernes, 19 de junio de 2026\"]",
+    "tag": "button",
+    "text": "viernes, 19 de junio de 2026",
+    "timestamp": 1781825926611,
+    "url": "https://luxdrive-app.vercel.app/add-rental"
+  },
+  {
+    "action": "click",
+    "description": "Click en button 'domingo, 21 de junio de 2026'",
+    "selector": "[aria-label=\"domingo, 21 de junio de 2026\"]",
+    "tag": "button",
+    "text": "domingo, 21 de junio de 2026",
+    "timestamp": 1781825927864,
+    "url": "https://luxdrive-app.vercel.app/add-rental"
+  },
+  {
+    "action": "click",
+    "description": "Click en button 'Siguiente'",
+    "selector": ".btn.btn-primary",
+    "tag": "button",
+    "text": "Siguiente",
+    "timestamp": 1781825929788,
+    "url": "https://luxdrive-app.vercel.app/add-rental"
+  },
+  {
+    "action": "click",
+    "description": "Click en div 'div'",
+    "selector": ".absolute.bottom-0",
+    "tag": "div",
+    "text": "div",
+    "timestamp": 1781825932712,
+    "url": "https://luxdrive-app.vercel.app/add-rental"
+  },
+  {
+    "action": "click",
+    "description": "Click en button 'Siguiente'",
+    "selector": ".btn.btn-primary",
+    "tag": "button",
+    "text": "Siguiente",
+    "timestamp": 1781825935029,
+    "url": "https://luxdrive-app.vercel.app/add-rental"
+  }
+]

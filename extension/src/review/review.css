@@ -1,0 +1,143 @@
+:root {
+  color: #e2e8f0;
+  background: #020617;
+  font-family: Inter, Segoe UI, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.review-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+
+.review-page h1 {
+  margin: 0 0 8px;
+}
+
+.review-page header p {
+  margin: 0;
+  color: #94a3b8;
+}
+
+.panel {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.player {
+  width: 100%;
+  max-height: 480px;
+  border-radius: 8px;
+  background: black;
+}
+
+.screenshot-block h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.screenshot {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+  background: #020617;
+}
+
+.trim-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.trim-hint {
+  margin: 0;
+  color: #93c5fd;
+  font-size: 0.9rem;
+}
+
+.trim-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button.preset {
+  background: #334155;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
+.trim-controls label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+input[type="range"] {
+  width: 100%;
+}
+
+button {
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #16a34a;
+  color: white;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.success {
+  margin: 0;
+  color: #86efac;
+}
+
+.error {
+  margin: 0;
+  color: #fca5a5;
+}
+
+.meta h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.meta p {
+  margin: 0 0 6px;
+  color: #cbd5e1;
+}
+
+details {
+  margin-top: 8px;
+}
+
+ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #cbd5e1;
+}
+
+li {
+  margin-bottom: 4px;
+}

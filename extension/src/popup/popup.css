@@ -1,0 +1,121 @@
+:root {
+  color: #e5e7eb;
+  background: #0f172a;
+  font-family: Inter, Segoe UI, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+.popup {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.popup h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.status {
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.status.recording {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+.status.idle {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+button {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #2563eb;
+  color: white;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.danger {
+  background: #dc2626;
+}
+
+button.secondary {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+button.capture {
+  background: #059669;
+}
+
+button.capture.secondary {
+  background: #0d9488;
+}
+
+.capture-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.capture-label {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+.info {
+  margin: 0;
+  color: #93c5fd;
+  font-size: 0.82rem;
+}
+
+.error {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 0.82rem;
+}
+
+footer {
+  color: #64748b;
+  font-size: 0.75rem;
+}
