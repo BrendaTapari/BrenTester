@@ -2,7 +2,6 @@ import { saveRecordingSession } from "../shared/db";
 import { blobToBase64 } from "../shared/blob-utils";
 import {
   BUFFER_CHUNK_MS,
-  BUFFER_MAX_CHUNKS,
   BUFFER_VIDEO_BITRATE,
   BUFFER_WINDOW_MS,
   MANUAL_VIDEO_BITRATE,
@@ -22,8 +21,6 @@ let chunks: TimestampedChunk[] = [];
 let activeSessionId: string | null = null;
 let activeMode: RecordingMode = "buffer";
 let activeMimeType = "video/webm";
-let recorderStartedAt = 0;
-let isRotating = false;
 
 function pickMimeType(): string {
   const candidates = [
@@ -152,35 +149,16 @@ async function stopRecorderOnly(): Promise<void> {
   mediaRecorder = null;
 }
 
-async function rotateBufferRecorder(): Promise<void> {
-  if (activeMode !== "buffer" || !mediaStream || isRotating) {
-    return;
-  }
-
-  isRotating = true;
-  try {
-    await flushPendingChunk();
-    chunks = [];
-    await stopRecorderOnly();
-    startRecorder();
-  } finally {
-    isRotating = false;
-  }
-}
-
 function pruneBufferChunks(): void {
-  if (activeMode !== "buffer") {
+  if (activeMode !== "buffer" || chunks.length <= 1) {
     return;
   }
 
-  if (Date.now() - recorderStartedAt >= BUFFER_WINDOW_MS) {
-    void rotateBufferRecorder();
-    return;
-  }
-
-  while (chunks.length > BUFFER_MAX_CHUNKS) {
-    chunks.shift();
-  }
+  // chunk[0] always contains the WebM init segment — never prune it.
+  const initChunk = chunks[0];
+  const cutoff = Date.now() - BUFFER_WINDOW_MS;
+  const dataChunks = chunks.slice(1).filter((c) => c.timestamp >= cutoff);
+  chunks = [initChunk, ...dataChunks];
 }
 
 function flushPendingChunk(): Promise<void> {
@@ -229,8 +207,6 @@ function startRecorder(): void {
     mimeType: activeMimeType,
     videoBitsPerSecond: getVideoBitrate(),
   });
-
-  recorderStartedAt = Date.now();
 
   mediaRecorder.ondataavailable = (event) => {
     if (event.data.size > 0) {

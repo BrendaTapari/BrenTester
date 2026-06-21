@@ -51,7 +51,7 @@ function getSessionIdFromUrl(): string | null {
 }
 
 function buildTicketText(options: {
-  entorno: string;
+  entornos: string[];
   perfil: string;
   rol: string;
   cuit: string;
@@ -65,8 +65,13 @@ function buildTicketText(options: {
       ? options.steps.map((step, index) => `${index + 1}. ${step.description}`).join("\n")
       : "Sin pasos registrados.";
 
+  const entornoLabel =
+    options.entornos.length === 0
+      ? "sin especificar"
+      : options.entornos.map((e) => e.toLowerCase()).join(", ");
+
   return [
-    `Entorno: ${options.entorno.toLowerCase()}`,
+    `Entorno: ${entornoLabel}`,
     `Perfil: ${options.perfil}`,
     `Rol: ${options.rol}`,
     "Usuario:",
@@ -125,7 +130,7 @@ function ReviewPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [nombreBug, setNombreBug] = useState("");
   const [formatearTicket, setFormatearTicket] = useState(false);
-  const [entorno, setEntornoState] = useState(ENTORNO_TEST);
+  const [entornos, setEntornosState] = useState<string[]>([ENTORNO_TEST]);
   const [perfil, setPerfilState] = useState(PERFIL_INTERNO);
   const [rol, setRolState] = useState(ROL_TODOS);
   const [cuit, setCuitState] = useState(CUIT_USUARIO_INTERNO);
@@ -215,8 +220,10 @@ function ReviewPage() {
     setEditedSteps((previous) => previous.slice(-count));
   }
 
-  function setEntorno(entorno: string) {
-    setEntornoState(entorno);
+  function toggleEntorno(value: string) {
+    setEntornosState((prev) =>
+      prev.includes(value) ? prev.filter((e) => e !== value) : [...prev, value],
+    );
   }
   function setPerfil(perfil: string) {
     setPerfilState(perfil);
@@ -246,7 +253,7 @@ function ReviewPage() {
   function aceptarTicket() {
     setTicketTexto(
       buildTicketText({
-        entorno,
+        entornos,
         perfil,
         rol,
         cuit,
@@ -518,13 +525,7 @@ function ReviewPage() {
               <button
                 type="button"
                 className="preset"
-                onClick={() => {
-                  setStartTime(0);
-                  setEndTime(duration);
-                  if (videoRef.current) {
-                    videoRef.current.currentTime = 0;
-                  }
-                }}
+                onClick={() => applyLastSeconds(60)}
               >
                 Minuto completo
               </button>
@@ -667,7 +668,7 @@ function ReviewPage() {
         </div>
       </section>
 
-      <button type="button" onClick={formatTicket}>Formatear ticket</button>
+      <button type="button" className="btn-format-ticket" onClick={formatTicket}>Formatear ticket</button>
       {formatearTicket ? (
         <section className="panel ticket-panel">
           {ticketTexto ? (
@@ -693,12 +694,18 @@ function ReviewPage() {
               <h2>Formatear ticket</h2>
               <div>
                 <p>Entorno:</p>
-                <select value={entorno} onChange={(event) => setEntorno(event.target.value)}>
-                  <option value={ENTORNO_TEST}>{ENTORNO_TEST}</option>
-                  <option value={ENTORNO_UAT}>{ENTORNO_UAT}</option>
-                  <option value={ENTORNO_PRODUCCION}>{ENTORNO_PRODUCCION}</option>
-                  <option value={ENTORNO_TODOS}>{ENTORNO_TODOS}</option>
-                </select>
+                <div className="entorno-checkboxes">
+                  {[ENTORNO_TEST, ENTORNO_UAT, ENTORNO_PRODUCCION, ENTORNO_TODOS].map((opcion) => (
+                    <label key={opcion} className="entorno-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={entornos.includes(opcion)}
+                        onChange={() => toggleEntorno(opcion)}
+                      />
+                      {opcion}
+                    </label>
+                  ))}
+                </div>
                 <p>Perfil:</p>
                 <select value={perfil} onChange={(event) => setPerfil(event.target.value)}>
                   <option value={PERFIL_INTERNO}>{PERFIL_INTERNO}</option>
@@ -735,7 +742,7 @@ function ReviewPage() {
                     placeholder="Describí el comportamiento correcto..."
                   />
                 </label>
-                <button type="button" onClick={aceptarTicket} >Aceptar</button>
+                <button type="button" className="btn-aceptar" onClick={aceptarTicket}>Aceptar</button>
               </div>
             </div>
           )}
