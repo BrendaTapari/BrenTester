@@ -92,6 +92,22 @@ input[type="range"] {
   width: 100%;
 }
 
+.bug-name-input {
+  width: 100%;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  color: #e2e8f0;
+  background: #020617;
+}
+
+.panel label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
 button {
   border: none;
   border-radius: 8px;
@@ -140,4 +156,136 @@ ul {
 
 li {
   margin-bottom: 4px;
+}
+
+.ticket-panel h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.ticket-form,
+.ticket-output {
+  display: grid;
+  gap: 12px;
+}
+
+.ticket-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.ticket-form select,
+.ticket-form textarea,
+.ticket-text {
+  width: 100%;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  color: #e2e8f0;
+  background: #020617;
+}
+
+.ticket-text {
+  min-height: 320px;
+  resize: vertical;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.ticket-steps-preview {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.ticket-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button.ticket-secondary {
+  background: #334155;
+}
+
+.steps-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.step-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 4px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.step-row-dragging {
+  opacity: 0.45;
+}
+
+.step-row-drag-over {
+  border-color: #60a5fa;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.step-drag-handle {
+  border: none;
+  border-radius: 6px;
+  padding: 8px 6px;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: grab;
+  background: #334155;
+  color: #cbd5e1;
+}
+
+.step-drag-handle:active {
+  cursor: grabbing;
+}
+
+.step-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+button.step-insert {
+  background: #1d4ed8;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  min-width: 2.25rem;
+}
+
+.step-number {
+  color: #93c5fd;
+  font-weight: 600;
+  min-width: 1.5rem;
+}
+
+.step-input {
+  width: 100%;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  color: #e2e8f0;
+  background: #020617;
+}
+
+button.step-delete {
+  background: #7f1d1d;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
+.steps-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

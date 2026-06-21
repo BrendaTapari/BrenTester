@@ -1,0 +1,101 @@
+[
+  {
+    "action": "click",
+    "description": "Clic en tr '2022/001281\t2022/000832\tBANCA EMPRESA\tProveedor\t$ 60.000,00\t$ 60.000,00\t$0\t$0\t$0'",
+    "selector": ".mat-row.cdk-row",
+    "tag": "tr",
+    "text": "2022/001281\t2022/000832\tBANCA EMPRESA\tProveedor\t$ 60.000,00\t$ 60.000,00\t$0\t$0\t$0",
+    "timestamp": 1781872134191,
+    "url": "http://test-appsrv.tribunalcba.gob.ar:40042/#/interno/posteriori/bandeja-posteriori/resumen-tramite/24439"
+  },
+  {
+    "action": "click",
+    "description": "Clic en contenedor 'Información General\nDocumentación\nMi Control\nOtras gestiones Adm/Judicial\nInform'",
+    "selector": ".vista-card__body",
+    "tag": "div",
+    "text": "Información General\nDocumentación\nMi Control\nOtras gestiones Adm/Judicial\nInform",
+    "timestamp": 1781872134469,
+    "url": "http://test-appsrv.tribunalcba.gob.ar:40042/#/interno/posteriori/bandeja-posteriori/resumen-tramite/24439"
+  },
+  {
+    "action": "click",
+    "description": "Clic en contenedor 'Información General'",
+    "selector": ".mat-tab-label-content",
+    "tag": "div",
+    "text": "Información General",
+    "timestamp": 1781872136704,
+    "url": "http://test-appsrv.tribunalcba.gob.ar:40042/#/interno/posteriori/bandeja-posteriori/resumen-tramite/24439"
+  },
+  {
+    "action": "click",
+    "description": "Clic en contenedor 'Información General\nDocumentación\nMi Control\nOtras gestiones Adm/Judicial\nInform'",
+    "selector": ".vista-card__body",
+    "tag": "div",
+    "text": "Información General\nDocumentación\nMi Control\nOtras gestiones Adm/Judicial\nInform",
+    "timestamp": 1781872140005,
+    "url": "http://test-appsrv.tribunalcba.gob.ar:40042/#/interno/posteriori/bandeja-posteriori/resumen-tramite/24439"
+  },
+  {
+    "action": "click",
+    "description": "Clic en contenedor 'Documentación'",
+    "selector": ".mat-tab-label-content",
+    "tag": "div",
+    "text": "Documentación",
+    "timestamp": 1781872140380,
+    "url": "http://test-appsrv.tribunalcba.gob.ar:40042/#/interno/posteriori/bandeja-posteriori/resumen-tramite/24439"
+  },
+  {
+    "action": "click",
+    "description": "Clic en contenedor 'Mi Control'",
+    "selector": ".mat-tab-label-content",
+    "tag": "div",
+    "text": "Mi Control",
+    "timestamp": 1781872141834,
+    "url": "http://test-appsrv.tribunalcba.gob.ar:40042/#/interno/posteriori/bandeja-posteriori/resumen-tramite/24439"
+  },
+  {
+    "action": "click",
+    "description": "Clic en contenedor 'Información General'",
+    "selector": ".mat-tab-label-content",
+    "tag": "div",
+    "text": "Información General",
+    "timestamp": 1781872144174,
+    "url": "http://test-appsrv.tribunalcba.gob.ar:40042/#/interno/posteriori/bandeja-posteriori/resumen-tramite/24439"
+  },
+  {
+    "action": "click",
+    "description": "Clic en contenedor 'Información Agente'",
+    "selector": ".mat-tab-label-content",
+    "tag": "div",
+    "text": "Información Agente",
+    "timestamp": 1781872145569,
+    "url": "http://test-appsrv.tribunalcba.gob.ar:40042/#/interno/posteriori/bandeja-posteriori/resumen-tramite/24439"
+  },
+  {
+    "action": "click",
+    "description": "Clic en contenedor 'Información General'",
+    "selector": ".mat-tab-label-content",
+    "tag": "div",
+    "text": "Información General",
+    "timestamp": 1781872147182,
+    "url": "http://test-appsrv.tribunalcba.gob.ar:40042/#/interno/posteriori/bandeja-posteriori/resumen-tramite/24439"
+  },
+  {
+    "action": "click",
+    "description": "Clic en contenedor 'Mi Control'",
+    "selector": "#mat-tab-label-3-2",
+    "tag": "div",
+    "text": "Mi Control",
+    "timestamp": 1781872148104,
+    "url": "http://test-appsrv.tribunalcba.gob.ar:40042/#/interno/posteriori/bandeja-posteriori/resumen-tramite/24439"
+  },
+  {
+    "action": "click",
+    "description": "Clic en contenedor 'Información General'",
+    "selector": ".mat-tab-label-content",
+    "tag": "div",
+    "text": "Información General",
+    "timestamp": 1781872149425,
+    "url": "http://test-appsrv.tribunalcba.gob.ar:40042/#/interno/posteriori/bandeja-posteriori/resumen-tramite/24439"
+  }
+]

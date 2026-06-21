@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import subprocess
 from datetime import datetime
@@ -37,9 +38,21 @@ def ensure_bug_reports_dir() -> Path:
     return BUG_REPORTS_DIR
 
 
-def create_bug_folder() -> Path:
+def sanitize_bug_folder_name(name: str) -> str:
+    cleaned = name.strip()
+    if not cleaned:
+        return ""
+    cleaned = re.sub(r'[<>:"/\\|?*]', "", cleaned)
+    cleaned = re.sub(r"\s+", "_", cleaned)
+    cleaned = re.sub(r"_+", "_", cleaned)
+    return cleaned.strip("._")[:80]
+
+
+def create_bug_folder(bug_name: str | None = None) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    folder = ensure_bug_reports_dir() / f"bug_{timestamp}"
+    slug = sanitize_bug_folder_name(bug_name or "")
+    folder_name = f"{slug}_{timestamp}" if slug else f"bug_{timestamp}"
+    folder = ensure_bug_reports_dir() / folder_name
     folder.mkdir(parents=True, exist_ok=False)
     return folder
 
@@ -286,6 +299,7 @@ async def upload_bug(
     screenshot: UploadFile | None = File(None, description="Captura de pantalla"),
     start_time: float | None = Form(None, description="Segundo de inicio del recorte"),
     end_time: float | None = Form(None, description="Segundo de fin del recorte"),
+    bug_name: str | None = Form(None, description="Nombre descriptivo del bug para la carpeta"),
 ) -> dict[str, Any]:
     has_video = video is not None and bool(video.filename or video.content_type)
     has_screenshot = (
@@ -303,7 +317,7 @@ async def upload_bug(
     validate_trim_times(start_time, end_time)
     steps_data, steps_formatted = parse_steps(steps)
 
-    bug_folder = create_bug_folder()
+    bug_folder = create_bug_folder(bug_name)
     saved_screenshot: str | None = None
     saved_video: str | None = None
     trimmed = False

@@ -10,6 +10,7 @@ export async function uploadBugReport(params: {
   screenshotBlob?: Blob | null;
   startTime?: number;
   endTime?: number;
+  bugName?: string;
 }): Promise<UploadResult> {
   const formData = new FormData();
 
@@ -29,6 +30,11 @@ export async function uploadBugReport(params: {
   if (params.startTime !== undefined && params.endTime !== undefined) {
     formData.append("start_time", String(params.startTime));
     formData.append("end_time", String(params.endTime));
+  }
+
+  const bugName = params.bugName?.trim();
+  if (bugName) {
+    formData.append("bug_name", bugName);
   }
 
   const response = await fetch(API_UPLOAD_URL, {

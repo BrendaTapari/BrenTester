@@ -20,6 +20,8 @@ Herramienta de QA personalizada: extensión Chrome + backend FastAPI para captur
 pip install -r requirements.txt
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
+# Opción 1.5: local (requiere FFmpeg) ((Si la anterior no anda bien))
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 # Opción 2: Docker
 docker compose up --build
 ```

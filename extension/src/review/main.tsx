@@ -1,10 +1,33 @@
-import { StrictMode, useEffect, useMemo, useRef, useState } from "react";
+import { StrictMode, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createRoot } from "react-dom/client";
 import { uploadBugReport } from "../shared/api";
 import { isValidBlob } from "../shared/blob-utils";
 import { loadRecordingSession } from "../shared/db";
 import type { LogEntry, NetworkEntry, RecordingSession, Step } from "../shared/types";
 import "./review.css";
+
+type EditedStep = Step & { editId: string };
+
+function createEditId(): string {
+  return crypto.randomUUID();
+}
+
+function toEditedStep(step: Step): EditedStep {
+  return { ...step, editId: createEditId() };
+}
+
+
+const ENTORNO_TEST = import.meta.env.VITE_ENTORNO_TEST;
+const ENTORNO_UAT = import.meta.env.VITE_ENTORNO_UAT;
+const ENTORNO_PRODUCCION = import.meta.env.VITE_ENTORNO_PRODUCCION;
+const ENTORNO_TODOS = import.meta.env.VITE_ENTORNO_TODOS;
+const PERFIL_INTERNO = import.meta.env.VITE_PERFIL_INTERNO;
+const PERFIL_EXTERNO = import.meta.env.VITE_PERFIL_EXTERNO;
+const ROL_TODOS = import.meta.env.VITE_ROL_TODOS;
+const CUIT_USUARIO_INTERNO = import.meta.env.VITE_CUIT_USUARIO_INTERNO;
+const CONTRASENA_USUARIO_INTERNO = import.meta.env.VITE_CONTRASENA_USUARIO_INTERNO;
+const CUIT_USUARIO_EXTERNO = import.meta.env.VITE_CUIT_USUARIO_EXTERNO;
+const CONTRASENA_USUARIO_EXTERNO = import.meta.env.VITE_CONTRASENA_USUARIO_EXTERNO;
 
 function formatNetworkEntry(entry: NetworkEntry): string {
   const status = entry.status !== undefined ? String(entry.status) : entry.error ?? "error";
@@ -25,6 +48,38 @@ function formatTime(seconds: number): string {
 function getSessionIdFromUrl(): string | null {
   const params = new URLSearchParams(window.location.search);
   return params.get("sessionId");
+}
+
+function buildTicketText(options: {
+  entorno: string;
+  perfil: string;
+  rol: string;
+  cuit: string;
+  contrasena: string;
+  steps: Step[];
+  resultadoObtenido: string;
+  resultadoEsperado: string;
+}): string {
+  const pasos =
+    options.steps.length > 0
+      ? options.steps.map((step, index) => `${index + 1}. ${step.description}`).join("\n")
+      : "Sin pasos registrados.";
+
+  return [
+    `Entorno: ${options.entorno.toLowerCase()}`,
+    `Perfil: ${options.perfil}`,
+    `Rol: ${options.rol}`,
+    "Usuario:",
+    `• ${options.cuit}`,
+    `• ${options.contrasena}`,
+    "",
+    "Pasos:",
+    pasos,
+    "",
+    `Resultado obtenido: ${options.resultadoObtenido.trim()}`,
+    "",
+    `Resultado esperado: ${options.resultadoEsperado.trim()}`,
+  ].join("\n");
 }
 
 function resolveVideoDuration(video: HTMLVideoElement): Promise<number> {
@@ -68,6 +123,169 @@ function ReviewPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [nombreBug, setNombreBug] = useState("");
+  const [formatearTicket, setFormatearTicket] = useState(false);
+  const [entorno, setEntornoState] = useState(ENTORNO_TEST);
+  const [perfil, setPerfilState] = useState(PERFIL_INTERNO);
+  const [rol, setRolState] = useState(ROL_TODOS);
+  const [cuit, setCuitState] = useState(CUIT_USUARIO_INTERNO);
+  const [contrasena, setContrasenaState] = useState(CONTRASENA_USUARIO_INTERNO);
+  const [resultadoObtenido, setResultadoObtenido] = useState("");
+  const [resultadoEsperado, setResultadoEsperado] = useState("");
+  const [ticketTexto, setTicketTexto] = useState<string | null>(null);
+  const [ticketCopiado, setTicketCopiado] = useState(false);
+  const [editedSteps, setEditedSteps] = useState<EditedStep[]>([]);
+  const [draggedStepIndex, setDraggedStepIndex] = useState<number | null>(null);
+  const [dragOverStepIndex, setDragOverStepIndex] = useState<number | null>(null);
+
+  function createManualStep(description = ""): EditedStep {
+    return {
+      action: "manual",
+      description,
+      selector: "",
+      tag: "",
+      text: "",
+      timestamp: Date.now(),
+      url: session?.tabUrl ?? window.location.href,
+      editId: createEditId(),
+    };
+  }
+  function updateStepDescription(index: number, description: string) {
+    setEditedSteps((previous) =>
+      previous.map((step, stepIndex) =>
+        stepIndex === index ? { ...step, description } : step,
+      ),
+    );
+  }
+  function removeStep(index: number) {
+    setEditedSteps((previous) => previous.filter((_, stepIndex) => stepIndex !== index));
+  }
+  function addStep() {
+    setEditedSteps((previous) => [...previous, createManualStep()]);
+  }
+  function insertStepAfter(index: number) {
+    setEditedSteps((previous) => [
+      ...previous.slice(0, index + 1),
+      createManualStep(),
+      ...previous.slice(index + 1),
+    ]);
+  }
+  function moveStep(fromIndex: number, toIndex: number) {
+    setEditedSteps((previous) => {
+      if (
+        fromIndex < 0 ||
+        fromIndex >= previous.length ||
+        toIndex < 0 ||
+        toIndex >= previous.length ||
+        fromIndex === toIndex
+      ) {
+        return previous;
+      }
+      const next = [...previous];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  }
+  function handleStepDragStart(index: number, event: DragEvent<HTMLButtonElement>) {
+    setDraggedStepIndex(index);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(index));
+  }
+  function handleStepDragEnd() {
+    setDraggedStepIndex(null);
+    setDragOverStepIndex(null);
+  }
+  function handleStepDragOver(index: number, event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (dragOverStepIndex !== index) {
+      setDragOverStepIndex(index);
+    }
+  }
+  function handleStepDrop(index: number, event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (draggedStepIndex !== null) {
+      moveStep(draggedStepIndex, index);
+    }
+    setDraggedStepIndex(null);
+    setDragOverStepIndex(null);
+  }
+  function keepLastSteps(count: number) {
+    setEditedSteps((previous) => previous.slice(-count));
+  }
+
+  function setEntorno(entorno: string) {
+    setEntornoState(entorno);
+  }
+  function setPerfil(perfil: string) {
+    setPerfilState(perfil);
+    if (perfil === PERFIL_INTERNO) {
+      setCuitState(CUIT_USUARIO_INTERNO);
+      setContrasenaState(CONTRASENA_USUARIO_INTERNO);
+    } else {
+      setCuitState(CUIT_USUARIO_EXTERNO);
+      setContrasenaState(CONTRASENA_USUARIO_EXTERNO);
+    }
+  }
+  function setRol(rol: string) {
+    setRolState(rol);
+  }
+  function setCuit(cuit: string) {
+    setCuitState(cuit);
+  }
+  function setContrasena(contrasena: string) {
+    setContrasenaState(contrasena);
+  }
+  function formatTicket() {
+    setFormatearTicket(!formatearTicket);
+    if (formatearTicket) {
+      setTicketTexto(null);
+    }
+  }
+  function aceptarTicket() {
+    setTicketTexto(
+      buildTicketText({
+        entorno,
+        perfil,
+        rol,
+        cuit,
+        contrasena,
+        steps: editedSteps,
+        resultadoObtenido,
+        resultadoEsperado,
+      }),
+    );
+  }
+  function volverAEditarTicket() {
+    setTicketTexto(null);
+    setTicketCopiado(false);
+  }
+  async function copiarTicket() {
+    if (!ticketTexto) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(ticketTexto);
+      setTicketCopiado(true);
+      window.setTimeout(() => setTicketCopiado(false), 2000);
+      return;
+    } catch {
+      // Fallback si el portapapeles no está disponible.
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = ticketTexto;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+    setTicketCopiado(true);
+    window.setTimeout(() => setTicketCopiado(false), 2000);
+  }
 
   useEffect(() => {
     if (!sessionId) {
@@ -86,6 +304,7 @@ function ReviewPage() {
         }
 
         setSession(result.session);
+        setEditedSteps(result.session.steps.map((step) => toEditedStep(step)));
 
         if (isValidBlob(result.videoBlob)) {
           videoObjectUrl = URL.createObjectURL(result.videoBlob);
@@ -195,6 +414,12 @@ function ReviewPage() {
       return;
     }
 
+    const bugName = nombreBug.trim();
+    if (!bugName) {
+      setError("Ingresá un nombre para el bug antes de guardar.");
+      return;
+    }
+
     setUploading(true);
     setError(null);
     setSuccess(null);
@@ -203,12 +428,13 @@ function ReviewPage() {
       const trim = getUploadTrim();
       const result = await uploadBugReport({
         videoBlob: hasVideo ? videoBlob : null,
-        steps: session.steps as Step[],
+        steps: editedSteps,
         logs: session.logs as LogEntry[],
         networks: (session.networks ?? []) as NetworkEntry[],
         screenshotBlob,
         startTime: trim.startTime,
         endTime: trim.endTime,
+        bugName,
       });
 
       const screenshotNote = result.screenshot ? ` Captura: ${result.screenshot}.` : "";
@@ -333,7 +559,23 @@ function ReviewPage() {
         </div>
         ) : null}
 
-        <button type="button" onClick={handleSave} disabled={uploading || (!hasVideo && !screenshotBlob)}>
+        <label>
+          Nombre del bug:
+          <input
+            type="text"
+            className="bug-name-input"
+            value={nombreBug}
+            onChange={(event) => setNombreBug(event.target.value)}
+            placeholder="Ej: error al ordenar columnas"
+            disabled={uploading}
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={uploading || (!hasVideo && !screenshotBlob) || !nombreBug.trim()}
+        >
           {uploading ? "Enviando..." : "Guardar reporte de bug"}
         </button>
 
@@ -341,21 +583,170 @@ function ReviewPage() {
         {error ? <p className="error">{error}</p> : null}
       </section>
 
+      <section className="panel steps-panel">
+        <h2>Editar pasos</h2>
+        <p className="trim-hint">
+          Arrastrá los pasos por el asa (⠿) para reordenarlos. También podés corregir, insertar (+) o borrar.
+        </p>
+
+        <div className="steps-editor">
+          {editedSteps.length === 0 ? (
+            <p className="trim-hint">No hay pasos. Agregá uno manualmente.</p>
+          ) : (
+            editedSteps.map((step, index) => (
+              <div
+                key={step.editId}
+                className={[
+                  "step-row",
+                  draggedStepIndex === index ? "step-row-dragging" : "",
+                  dragOverStepIndex === index && draggedStepIndex !== index
+                    ? "step-row-drag-over"
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onDragOver={(event) => handleStepDragOver(index, event)}
+                onDrop={(event) => handleStepDrop(index, event)}
+                onDragLeave={() => {
+                  if (dragOverStepIndex === index) {
+                    setDragOverStepIndex(null);
+                  }
+                }}
+              >
+                <button
+                  type="button"
+                  className="step-drag-handle"
+                  draggable
+                  onDragStart={(event) => handleStepDragStart(index, event)}
+                  onDragEnd={handleStepDragEnd}
+                  title="Arrastrar para reordenar"
+                  aria-label="Arrastrar paso"
+                >
+                  ⠿
+                </button>
+                <span className="step-number">{index + 1}.</span>
+                <input
+                  type="text"
+                  className="step-input"
+                  value={step.description}
+                  onChange={(event) => updateStepDescription(index, event.target.value)}
+                  placeholder="Descripción del paso..."
+                />
+                <div className="step-row-actions">
+                  <button
+                    type="button"
+                    className="step-insert"
+                    onClick={() => insertStepAfter(index)}
+                    title="Insertar paso debajo"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    className="step-delete"
+                    onClick={() => removeStep(index)}
+                    title="Borrar paso"
+                  >
+                    Borrar
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="steps-editor-actions">
+          <button type="button" className="preset" onClick={addStep}>
+            Agregar paso
+          </button>
+          {editedSteps.length > 5 ? (
+            <button type="button" className="preset" onClick={() => keepLastSteps(5)}>
+              Quedarme con los últimos 5
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      <button type="button" onClick={formatTicket}>Formatear ticket</button>
+      {formatearTicket ? (
+        <section className="panel ticket-panel">
+          {ticketTexto ? (
+            <div className="ticket-output">
+              <h2>Ticket listo para copiar</h2>
+              <textarea
+                className="ticket-text"
+                readOnly
+                value={ticketTexto}
+                onFocus={(event) => event.currentTarget.select()}
+              />
+              <div className="ticket-actions">
+                <button type="button" onClick={() => void copiarTicket()}>
+                  {ticketCopiado ? "¡Copiado!" : "Copiar ticket"}
+                </button>
+                <button type="button" className="ticket-secondary" onClick={volverAEditarTicket}>
+                  Volver a editar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="ticket-form">
+              <h2>Formatear ticket</h2>
+              <div>
+                <p>Entorno:</p>
+                <select value={entorno} onChange={(event) => setEntorno(event.target.value)}>
+                  <option value={ENTORNO_TEST}>{ENTORNO_TEST}</option>
+                  <option value={ENTORNO_UAT}>{ENTORNO_UAT}</option>
+                  <option value={ENTORNO_PRODUCCION}>{ENTORNO_PRODUCCION}</option>
+                  <option value={ENTORNO_TODOS}>{ENTORNO_TODOS}</option>
+                </select>
+                <p>Perfil:</p>
+                <select value={perfil} onChange={(event) => setPerfil(event.target.value)}>
+                  <option value={PERFIL_INTERNO}>{PERFIL_INTERNO}</option>
+                  <option value={PERFIL_EXTERNO}>{PERFIL_EXTERNO}</option>
+                </select>
+                <p>Rol:</p>
+                <select value={rol} onChange={(event) => setRol(event.target.value)}>
+                  <option value={ROL_TODOS}>{ROL_TODOS}</option>
+                </select>
+                <p>Usuario:</p>
+                <p>• {cuit}</p>
+                <p>• {contrasena}</p>
+                <p>Pasos (editados):</p>
+                <ol className="ticket-steps-preview">
+                  {editedSteps.map((step, index) => (
+                    <li key={`${step.timestamp}-${index}`}>{step.description || "(sin descripción)"}</li>
+                  ))}
+                </ol>
+                <label>
+                  Resultado obtenido:
+                  <textarea
+                    value={resultadoObtenido}
+                    onChange={(event) => setResultadoObtenido(event.target.value)}
+                    rows={3}
+                    placeholder="Describí qué pasó al reproducir el bug..."
+                  />
+                </label>
+                <label>
+                  Resultado esperado:
+                  <textarea
+                    value={resultadoEsperado}
+                    onChange={(event) => setResultadoEsperado(event.target.value)}
+                    rows={3}
+                    placeholder="Describí el comportamiento correcto..."
+                  />
+                </label>
+                <button type="button" onClick={aceptarTicket} >Aceptar</button>
+              </div>
+            </div>
+          )}
+        </section>
+      ) : null}
       <section className="panel meta">
-        <h2>Pasos para llegar aquí (último minuto)</h2>
-        <p>Pasos registrados: {session?.steps.length ?? 0}</p>
+        <h2>Detalles de la sesión</h2>
+        <p>Pasos en el ticket: {editedSteps.length}</p>
         <p>Logs de consola: {session?.logs.length ?? 0}</p>
         <p>Peticiones de red: {session?.networks?.length ?? 0}</p>
         <p>URL: {session?.tabUrl || "N/A"}</p>
-
-        <details open>
-          <summary>Ver pasos</summary>
-          <ul>
-            {(session?.steps ?? []).map((step, index) => (
-              <li key={`${step.timestamp}-${index}`}>{step.description}</li>
-            ))}
-          </ul>
-        </details>
 
         <details open>
           <summary>Ver logs de consola</summary>
