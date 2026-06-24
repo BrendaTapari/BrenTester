@@ -37,104 +37,6 @@ function getVideoBitrate(): number {
   return activeMode === "buffer" ? BUFFER_VIDEO_BITRATE : MANUAL_VIDEO_BITRATE;
 }
 
-function waitForVideoEvent(video: HTMLVideoElement, event: "loadedmetadata" | "seeked"): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const onError = () => {
-      cleanup();
-      reject(new Error("No se pudo leer el video."));
-    };
-    const onEvent = () => {
-      cleanup();
-      resolve();
-    };
-    const cleanup = () => {
-      video.removeEventListener(event, onEvent);
-      video.removeEventListener("error", onError);
-    };
-    video.addEventListener(event, onEvent, { once: true });
-    video.addEventListener("error", onError, { once: true });
-  });
-}
-
-async function getBlobDuration(blob: Blob): Promise<number> {
-  const url = URL.createObjectURL(blob);
-  const video = document.createElement("video");
-  video.preload = "auto";
-  video.muted = true;
-  video.src = url;
-
-  try {
-    await waitForVideoEvent(video, "loadedmetadata");
-    return Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
-  } finally {
-    URL.revokeObjectURL(url);
-    video.removeAttribute("src");
-  }
-}
-
-async function trimToLastMinute(sourceBlob: Blob): Promise<Blob> {
-  const duration = await getBlobDuration(sourceBlob);
-  if (duration <= 61) {
-    return sourceBlob;
-  }
-
-  const url = URL.createObjectURL(sourceBlob);
-  const video = document.createElement("video");
-  video.muted = true;
-  video.playsInline = true;
-  video.src = url;
-
-  try {
-    await waitForVideoEvent(video, "loadedmetadata");
-    const startAt = Math.max(0, video.duration - 60);
-    video.currentTime = startAt;
-    await waitForVideoEvent(video, "seeked");
-
-    const captured = video.captureStream();
-    const mimeType = pickMimeType();
-    const recorder = new MediaRecorder(captured, {
-      mimeType,
-      videoBitsPerSecond: BUFFER_VIDEO_BITRATE,
-    });
-
-    const parts: Blob[] = [];
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        parts.push(event.data);
-      }
-    };
-
-    await new Promise<void>((resolve, reject) => {
-      recorder.onstop = () => resolve();
-      recorder.onerror = () => reject(new Error("No se pudo recortar el video."));
-      recorder.start(1000);
-      void video.play().catch(reject);
-
-      window.setTimeout(() => {
-        video.pause();
-        if (recorder.state === "recording") {
-          recorder.stop();
-        } else {
-          resolve();
-        }
-      }, 60_500);
-    });
-
-    const trimmed = new Blob(parts, { type: mimeType });
-    return trimmed.size > 0 ? trimmed : sourceBlob;
-  } finally {
-    URL.revokeObjectURL(url);
-    video.removeAttribute("src");
-  }
-}
-
-async function finalizeBufferVideo(rawBlob: Blob): Promise<Blob> {
-  if (activeMode !== "buffer" || rawBlob.size === 0) {
-    return rawBlob;
-  }
-
-  return trimToLastMinute(rawBlob);
-}
 
 async function stopRecorderOnly(): Promise<void> {
   if (mediaRecorder && mediaRecorder.state !== "inactive") {
@@ -269,8 +171,7 @@ async function stopMedia(): Promise<void> {
 
 async function getCurrentVideoBlob(): Promise<Blob> {
   await flushPendingChunk();
-  const rawBlob = buildVideoBlob();
-  return finalizeBufferVideo(rawBlob);
+  return buildVideoBlob();
 }
 
 async function stopRecording(sessionId: string, session: RecordingSession): Promise<void> {
@@ -279,9 +180,7 @@ async function stopRecording(sessionId: string, session: RecordingSession): Prom
   }
 
   await flushPendingChunk();
-  const rawBlob = buildVideoBlob();
-  const videoBlob =
-    session.recordingMode === "buffer" ? await finalizeBufferVideo(rawBlob) : rawBlob;
+  const videoBlob = buildVideoBlob();
 
   await stopMedia();
 

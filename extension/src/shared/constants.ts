@@ -1,5 +1,5 @@
-/** Ventana deslizante: video, pasos y logs del último minuto (modo sesión). */
-export const BUFFER_WINDOW_MS = 60_000;
+/** Ventana deslizante: video, pasos y logs de los últimos dos minutos (modo sesión). */
+export const BUFFER_WINDOW_MS = 120_000;
 
 /** Intervalo entre trozos de video (ms). Más alto = menos CPU. */
 export const BUFFER_CHUNK_MS = 2_000;

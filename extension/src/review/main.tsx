@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useMemo, useRef, useState, type DragEvent } from
 import { createRoot } from "react-dom/client";
 import { uploadBugReport } from "../shared/api";
 import { isValidBlob } from "../shared/blob-utils";
+import { BUFFER_WINDOW_MS } from "../shared/constants";
 import { loadRecordingSession } from "../shared/db";
 import type { LogEntry, NetworkEntry, RecordingSession, Step } from "../shared/types";
 import "./review.css";
@@ -479,7 +480,7 @@ function ReviewPage() {
         <p>
           {isManual
             ? "Grabación manual: mové los sliders para recortar el tramo que querés enviar."
-            : "Sesión: elegí qué tramo del último minuto querés guardar (por defecto, los últimos 10 s)."}
+            : "Sesión: elegí qué tramo de los últimos 2 minutos querés guardar (por defecto, los últimos 10 s)."}
         </p>
       </header>
 
@@ -522,12 +523,11 @@ function ReviewPage() {
               <button type="button" className="preset" onClick={() => applyLastSeconds(30)}>
                 Últimos 30 s
               </button>
-              <button
-                type="button"
-                className="preset"
-                onClick={() => applyLastSeconds(60)}
-              >
-                Minuto completo
+              <button type="button" className="preset" onClick={() => applyLastSeconds(60)}>
+                Último minuto
+              </button>
+              <button type="button" className="preset" onClick={() => applyLastSeconds(BUFFER_WINDOW_MS / 1000)}>
+                Últimos 2 min
               </button>
             </div>
           ) : null}
