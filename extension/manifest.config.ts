@@ -6,7 +6,7 @@ export default defineManifest({
   version: "1.0.0",
   description:
     "Graba la pestaña activa, captura pasos y logs, y envía reportes de bug al backend BrenTester.",
-  permissions: ["activeTab", "tabCapture", "storage", "scripting", "offscreen", "webRequest"],
+  permissions: ["activeTab", "tabCapture", "storage", "scripting", "offscreen", "webRequest", "debugger"],
   host_permissions: ["http://localhost:8000/*", "http://*/*", "https://*/*"],
   background: {
     service_worker: "src/background/index.ts",

@@ -1,6 +1,6 @@
 import { saveRecordingSession } from "../shared/db";
 import { dataUrlToBlob, base64ToBlob, isValidBlob } from "../shared/blob-utils";
-import { BUFFER_WINDOW_MS, MAX_NETWORK_ENTRIES, type RecordingMode } from "../shared/constants";
+import { BUFFER_MIN_STEPS, BUFFER_WINDOW_MS, MAX_NETWORK_ENTRIES, type RecordingMode } from "../shared/constants";
 import { MessageType, isRuntimeMessage } from "../shared/messages";
 import type {
   LogEntry,
@@ -47,7 +47,14 @@ function pruneRecordingState(state: RecordingState): void {
   }
 
   const cutoff = Date.now() - BUFFER_WINDOW_MS;
-  state.steps = state.steps.filter((step) => step.timestamp >= cutoff);
+
+  // Pasos: filtrar por ventana, pero nunca quedar con menos de BUFFER_MIN_STEPS.
+  const recentSteps = state.steps.filter((step) => step.timestamp >= cutoff);
+  state.steps =
+    recentSteps.length >= BUFFER_MIN_STEPS
+      ? recentSteps
+      : state.steps.slice(-BUFFER_MIN_STEPS);
+
   state.logs = state.logs.filter((log) => log.timestamp >= cutoff);
   state.networks = state.networks.filter((entry) => entry.timestamp >= cutoff);
 }
@@ -58,17 +65,15 @@ function getCaptureEvents(state: RecordingState): {
   networks: NetworkEntry[];
 } {
   const cutoff = Date.now() - BUFFER_WINDOW_MS;
-  const steps = state.steps.filter((step) => step.timestamp >= cutoff);
+  const recentSteps = state.steps.filter((step) => step.timestamp >= cutoff);
   const logs = state.logs.filter((log) => log.timestamp >= cutoff);
   const networks = state.networks.filter((entry) => entry.timestamp >= cutoff);
 
-  if (steps.length === 0 && state.steps.length > 0) {
-    return {
-      steps: state.steps.slice(-30),
-      logs: state.logs.slice(-30),
-      networks: state.networks.slice(-30),
-    };
-  }
+  // Siempre devolver al menos los últimos BUFFER_MIN_STEPS pasos.
+  const steps =
+    recentSteps.length >= BUFFER_MIN_STEPS
+      ? recentSteps
+      : state.steps.slice(-BUFFER_MIN_STEPS);
 
   return { steps, logs, networks };
 }
@@ -537,6 +542,228 @@ async function openReviewPage(sessionId: string): Promise<void> {
   await chrome.tabs.create({ url: reviewUrl });
 }
 
+// ── Full-page screenshot via CDP ────────────────────────────────────────────
+
+/**
+ * Altura en píxeles del strip del frame de video que se usa como "browser chrome"
+ * (pestañas + barra de URL). Ajustable si la densidad de pantalla varía.
+ */
+const BROWSER_CHROME_STRIP_PX = 100;
+
+/**
+ * Fusiona la franja superior de un frame del stream de video (que contiene
+ * la barra de URL real) con el screenshot completo de la página capturado por CDP.
+ *
+ * frameBase64  → PNG base64 de un frame del MediaStream activo
+ * domBase64    → PNG base64 del screenshot CDP (full-page, sin browser chrome)
+ */
+async function stitchBrowserFrame(frameBase64: string, domBase64: string): Promise<Blob> {
+  const [frameBitmap, domBitmap] = await Promise.all([
+    createImageBitmap(base64ToBlob(frameBase64, "image/png")),
+    createImageBitmap(base64ToBlob(domBase64,   "image/png")),
+  ]);
+
+  const stripH = Math.min(BROWSER_CHROME_STRIP_PX, frameBitmap.height);
+  const finalW = domBitmap.width;
+  const finalH = stripH + domBitmap.height;
+
+  const canvas = new OffscreenCanvas(finalW, finalH);
+  const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+
+  // Franja superior: escala el frame al ancho del DOM screenshot
+  ctx.drawImage(frameBitmap, 0, 0, frameBitmap.width, stripH, 0, 0, finalW, stripH);
+  // DOM completo debajo de la franja
+  ctx.drawImage(domBitmap, 0, stripH);
+
+  frameBitmap.close();
+  domBitmap.close();
+
+  return canvas.convertToBlob({ type: "image/png" });
+}
+
+function sendDebuggerCommand<T = unknown>(
+  tabId: number,
+  method: string,
+  params: Record<string, unknown> = {},
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    chrome.debugger.sendCommand({ tabId }, method, params, (result) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+      } else {
+        resolve(result as T);
+      }
+    });
+  });
+}
+
+async function attachDebugger(tabId: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.debugger.attach({ tabId }, "1.3", () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(`No se pudo conectar el debugger: ${error.message}`));
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+async function detachDebugger(tabId: number): Promise<void> {
+  return new Promise((resolve) => {
+    chrome.debugger.detach({ tabId }, () => {
+      chrome.runtime.lastError; // consume
+      resolve();
+    });
+  });
+}
+
+async function addUrlBannerToImage(imageBlob: Blob, url: string): Promise<Blob> {
+  const bitmap = await createImageBitmap(imageBlob);
+  const BANNER_H = 42;
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height + BANNER_H);
+  const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(0, 0, canvas.width, BANNER_H);
+
+  ctx.font = "bold 13px monospace";
+  ctx.fillStyle = "#93c5fd";
+  ctx.fillText("URL:", 10, 27);
+
+  ctx.font = "13px monospace";
+  ctx.fillStyle = "#e2e8f0";
+  const maxChars = Math.floor((bitmap.width - 60) / 7.8);
+  const label = url.length > maxChars ? `${url.slice(0, maxChars)}…` : url;
+  ctx.fillText(label, 52, 27);
+
+  ctx.drawImage(bitmap, 0, BANNER_H);
+  bitmap.close();
+
+  return canvas.convertToBlob({ type: "image/png" });
+}
+
+async function captureFullPage(): Promise<{ sessionId: string }> {
+  const tab = await getActiveTab();
+  const tabId = tab.id!;
+  const tabUrl = tab.url ?? "";
+
+  await chrome.tabs.update(tabId, { active: true });
+
+  // ── Paso previo: intentar capturar un frame del stream activo ─────────────
+  // El frame contiene la barra de URL si el stream es pantalla completa
+  // (getDisplayMedia). Con tabCapture solo tiene contenido de la pestaña.
+  let liveFrameBase64: string | null = null;
+  try {
+    const frameResp = await sendOffscreenMessage<{ ok: boolean; frameBase64?: string }>(
+      { type: MessageType.OFFSCREEN_CAPTURE_FRAME },
+    );
+    if (frameResp.ok && frameResp.frameBase64) {
+      liveFrameBase64 = frameResp.frameBase64;
+    }
+  } catch {
+    // No hay stream activo — se usará el banner de URL como fallback
+  }
+
+  let attached = false;
+  let metricsOverrideActive = false;
+
+  try {
+    await attachDebugger(tabId);
+    attached = true;
+
+    await sendDebuggerCommand(tabId, "Page.enable");
+
+    // ── PASO 1: obtener dimensiones reales del documento ──────────────────
+    const evalResult = await sendDebuggerCommand<{
+      result: { value: { width: number; height: number } };
+    }>(tabId, "Runtime.evaluate", {
+      expression: `(function () {
+        var el = document.documentElement;
+        return {
+          width:  Math.max(el.scrollWidth,  el.offsetWidth,  el.clientWidth),
+          height: Math.max(el.scrollHeight, el.offsetHeight, el.clientHeight)
+        };
+      })()`,
+      returnByValue: true,
+    });
+
+    const fullWidth  = Math.ceil(evalResult.result.value.width);
+    const fullHeight = Math.ceil(evalResult.result.value.height);
+
+    // ── PASO 2: forzar al motor a renderizar toda la página ───────────────
+    // setDeviceMetricsOverride le dice a Chrome que el "viewport" es tan
+    // grande como el documento completo → pinta todo el DOM.
+    await sendDebuggerCommand(tabId, "Emulation.setDeviceMetricsOverride", {
+      width:             fullWidth,
+      height:            fullHeight,
+      deviceScaleFactor: 1,
+      mobile:            false,
+    });
+    metricsOverrideActive = true;
+
+    // ── PASO 3: pausa para que el motor de renderizado pinte el área nueva ─
+    await new Promise<void>((resolve) => setTimeout(resolve, 400));
+
+    // ── PASO 4: captura ───────────────────────────────────────────────────
+    const { data } = await sendDebuggerCommand<{ data: string }>(
+      tabId,
+      "Page.captureScreenshot",
+      {
+        format:               "png",
+        captureBeyondViewport: true,
+        fromSurface:           true,
+      },
+    );
+
+    // ── PASO 5: restaurar viewport ANTES de cualquier otra operación ───────
+    await sendDebuggerCommand(tabId, "Emulation.clearDeviceMetricsOverride");
+    metricsOverrideActive = false;
+
+    const rawBlob = base64ToBlob(data, "image/png");
+    if (!isValidBlob(rawBlob)) {
+      throw new Error("La captura de página completa quedó vacía.");
+    }
+
+    // Si hay un frame del stream activo, fusionamos la franja del browser chrome.
+    // Si no, agregamos el banner de URL programático como fallback.
+    const screenshotBlob = liveFrameBase64
+      ? await stitchBrowserFrame(liveFrameBase64, data)
+      : await addUrlBannerToImage(rawBlob, tabUrl);
+
+    const sessionId = createSessionId();
+    const session: RecordingSession = {
+      sessionId,
+      tabId,
+      tabUrl,
+      steps:    recordingState?.tabId === tabId ? [...(recordingState.steps    ?? [])] : [],
+      logs:     recordingState?.tabId === tabId ? [...(recordingState.logs     ?? [])] : [],
+      networks: recordingState?.tabId === tabId ? [...(recordingState.networks ?? [])] : [],
+      mimeType:      "video/webm",
+      createdAt:     Date.now(),
+      capturedAt:    Date.now(),
+      hasScreenshot: true,
+      recordingMode: "buffer",
+      screenshotMode: "full",
+    };
+
+    await saveRecordingSession(session, null, screenshotBlob);
+    await openReviewPage(sessionId);
+    return { sessionId };
+
+  } finally {
+    // Limpieza garantizada: si algo lanzó antes del clear explícito, lo hacemos acá.
+    if (metricsOverrideActive) {
+      await sendDebuggerCommand(tabId, "Emulation.clearDeviceMetricsOverride").catch(() => {});
+    }
+    if (attached) {
+      await detachDebugger(tabId);
+    }
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!isRuntimeMessage(message)) {
     return false;
@@ -552,6 +779,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       mode: recordingState?.mode ?? null,
     });
     return false;
+  }
+
+  if (message.type === MessageType.CAPTURE_FULL_PAGE) {
+    captureFullPage()
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error: Error) => sendResponse({ ok: false, message: error.message }));
+    return true;
   }
 
   if (message.type === MessageType.START_BUFFER_SESSION) {

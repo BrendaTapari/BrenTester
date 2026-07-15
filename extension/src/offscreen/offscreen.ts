@@ -222,6 +222,36 @@ async function forceStop(): Promise<void> {
   chunks = [];
 }
 
+/**
+ * Captura un único frame del MediaStream activo usando ImageCapture.
+ * Devuelve la imagen en base64 PNG.
+ * Nota: el stream es tabCapture (contenido de la pestaña).
+ * Si en el futuro se graba con getDisplayMedia (pantalla completa),
+ * el frame incluirá también la barra de direcciones del navegador.
+ */
+async function grabFrameFromStream(): Promise<string> {
+  if (!mediaStream) {
+    throw new Error("No hay stream activo para capturar el frame.");
+  }
+  const videoTrack = mediaStream.getVideoTracks()[0];
+  if (!videoTrack) {
+    throw new Error("El stream no tiene pista de video.");
+  }
+
+  // ImageCapture.grabFrame() obtiene un ImageBitmap directamente del track
+  // sin necesidad de un elemento <video> visible.
+  const imageCapture = new ImageCapture(videoTrack);
+  const bitmap = await imageCapture.grabFrame();
+
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const ctx = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+
+  const blob = await canvas.convertToBlob({ type: "image/png" });
+  return blobToBase64(blob);
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === MessageType.OFFSCREEN_START) {
     startRecording(message.streamId, message.sessionId, message.mode ?? "buffer")
@@ -257,6 +287,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === MessageType.OFFSCREEN_FORCE_STOP) {
     forceStop()
       .then(() => sendResponse({ ok: true }))
+      .catch((error: Error) => sendResponse({ ok: false, message: error.message }));
+    return true;
+  }
+
+  if (message?.type === MessageType.OFFSCREEN_CAPTURE_FRAME) {
+    grabFrameFromStream()
+      .then((frameBase64) => sendResponse({ ok: true, frameBase64 }))
       .catch((error: Error) => sendResponse({ ok: false, message: error.message }));
     return true;
   }

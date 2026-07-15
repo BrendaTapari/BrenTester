@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createRoot } from "react-dom/client";
 import { uploadBugReport } from "../shared/api";
 import { isValidBlob } from "../shared/blob-utils";
@@ -6,6 +6,7 @@ import { BUFFER_WINDOW_MS } from "../shared/constants";
 import { loadRecordingSession } from "../shared/db";
 import type { LogEntry, NetworkEntry, RecordingSession, Step } from "../shared/types";
 import "./review.css";
+import { Pencil, Type, Copy, Undo, Check, X } from "lucide-react";
 
 type EditedStep = Step & { editId: string };
 
@@ -144,6 +145,30 @@ function ReviewPage() {
   const [draggedStepIndex, setDraggedStepIndex] = useState<number | null>(null);
   const [dragOverStepIndex, setDragOverStepIndex] = useState<number | null>(null);
 
+  // — Anotaciones —
+  const [annotationMode, setAnnotationMode] = useState(false);
+  const [drawColor, setDrawColor] = useState("#000000");
+  const [toolMode, setToolMode] = useState<"pen" | "text" | "rect">("pen");
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [textPos, setTextPos] = useState<{ x: number; y: number } | null>(null);
+  const [textInputValue, setTextInputValue] = useState("");
+  const annotationCanvasRef = useRef<HTMLCanvasElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+  const rectStartRef = useRef<{ x: number; y: number } | null>(null);
+  const historyRef = useRef<ImageData[]>([]);
+
+  // — Zoom —
+  const ZOOM_MIN  = 0.25;
+  const ZOOM_MAX  = 3.0;
+  const ZOOM_STEP = 0.25;
+  const [zoom, setZoom] = useState(1.0);
+  // Dimensiones lógicas del canvas (píxeles del canvas attribute), guardadas al inicializar
+  const [canvasNaturalSize, setCanvasNaturalSize] = useState<{ w: number; h: number } | null>(null);
+
+  const zoomIn  = useCallback(() => setZoom((z) => Math.min(ZOOM_MAX,  parseFloat((z + ZOOM_STEP).toFixed(2)))), []);
+  const zoomOut = useCallback(() => setZoom((z) => Math.max(ZOOM_MIN, parseFloat((z - ZOOM_STEP).toFixed(2)))), []);
+
   function createManualStep(description = ""): EditedStep {
     return {
       action: "manual",
@@ -220,6 +245,270 @@ function ReviewPage() {
   function keepLastSteps(count: number) {
     setEditedSteps((previous) => previous.slice(-count));
   }
+
+  // ── Annotation helpers ──────────────────────────────────────────────
+  const PEN_WIDTH = 4;
+  const TEXT_FONT = "bold 18px sans-serif";
+  const canvasScrollRef = useRef<HTMLDivElement>(null);
+
+  const getCanvasCoords = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } => {
+      const canvas = annotationCanvasRef.current!;
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: ((e.clientX - rect.left) / rect.width) * canvas.width,
+        y: ((e.clientY - rect.top) / rect.height) * canvas.height,
+      };
+    },
+    [],
+  );
+
+  const saveHistory = useCallback(() => {
+    const canvas = annotationCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    historyRef.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    if (historyRef.current.length > 40) historyRef.current.shift();
+  }, []);
+
+  const undoAnnotation = useCallback(() => {
+    const canvas = annotationCanvasRef.current;
+    if (!canvas || historyRef.current.length === 0) return;
+    const ctx = canvas.getContext("2d")!;
+    ctx.putImageData(historyRef.current.pop()!, 0, 0);
+    setTextPos(null);
+  }, []);
+
+  const handleCanvasMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (toolMode === "text") return;
+
+      saveHistory();
+      const pos = getCanvasCoords(e);
+      setIsDrawing(true);
+
+      if (toolMode === "rect") {
+        rectStartRef.current = pos;
+        return;
+      }
+
+      // pen
+      lastPointRef.current = pos;
+      const ctx = annotationCanvasRef.current!.getContext("2d")!;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, PEN_WIDTH / 2, 0, Math.PI * 2);
+      ctx.fillStyle = drawColor;
+      ctx.fill();
+    },
+    [toolMode, drawColor, saveHistory, getCanvasCoords],
+  );
+
+  const handleCanvasMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!isDrawing || toolMode === "text") return;
+
+      const pos = getCanvasCoords(e);
+
+      if (toolMode === "rect") {
+        if (!rectStartRef.current) return;
+        const preview = previewCanvasRef.current;
+        if (!preview) return;
+        const pctx = preview.getContext("2d")!;
+        pctx.clearRect(0, 0, preview.width, preview.height);
+        const x = Math.min(rectStartRef.current.x, pos.x);
+        const y = Math.min(rectStartRef.current.y, pos.y);
+        const w = Math.abs(pos.x - rectStartRef.current.x);
+        const h = Math.abs(pos.y - rectStartRef.current.y);
+        pctx.strokeStyle = drawColor;
+        pctx.lineWidth = PEN_WIDTH;
+        pctx.strokeRect(x, y, w, h);
+        return;
+      }
+
+      // pen
+      if (!lastPointRef.current) return;
+      const ctx = annotationCanvasRef.current!.getContext("2d")!;
+      ctx.beginPath();
+      ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.strokeStyle = drawColor;
+      ctx.lineWidth = PEN_WIDTH;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.stroke();
+      lastPointRef.current = pos;
+    },
+    [isDrawing, toolMode, drawColor, getCanvasCoords],
+  );
+
+  const handleCanvasMouseUp = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (toolMode === "rect" && isDrawing && rectStartRef.current) {
+        const pos = getCanvasCoords(e);
+        const canvas = annotationCanvasRef.current!;
+        const ctx = canvas.getContext("2d")!;
+        const x = Math.min(rectStartRef.current.x, pos.x);
+        const y = Math.min(rectStartRef.current.y, pos.y);
+        const w = Math.abs(pos.x - rectStartRef.current.x);
+        const h = Math.abs(pos.y - rectStartRef.current.y);
+        // Only draw if the rect has some size
+        if (w > 1 || h > 1) {
+          ctx.strokeStyle = drawColor;
+          ctx.lineWidth = PEN_WIDTH;
+          ctx.strokeRect(x, y, w, h);
+        } else {
+          // tiny click in rect mode — undo the history snapshot
+          if (historyRef.current.length > 0) {
+            ctx.putImageData(historyRef.current.pop()!, 0, 0);
+          }
+        }
+        const preview = previewCanvasRef.current;
+        if (preview) preview.getContext("2d")!.clearRect(0, 0, preview.width, preview.height);
+        rectStartRef.current = null;
+      }
+      setIsDrawing(false);
+      lastPointRef.current = null;
+    },
+    [toolMode, isDrawing, drawColor, getCanvasCoords],
+  );
+
+  /** Mouse-leave: abort any in-progress rect without committing it. */
+  const abortDrawing = useCallback(() => {
+    if (toolMode === "rect" && isDrawing) {
+      const preview = previewCanvasRef.current;
+      if (preview) preview.getContext("2d")!.clearRect(0, 0, preview.width, preview.height);
+      // undo the saveHistory called on mousedown
+      const canvas = annotationCanvasRef.current;
+      if (canvas && historyRef.current.length > 0) {
+        canvas.getContext("2d")!.putImageData(historyRef.current.pop()!, 0, 0);
+      }
+      rectStartRef.current = null;
+    }
+    setIsDrawing(false);
+    lastPointRef.current = null;
+  }, [toolMode, isDrawing]);
+
+  const handleCanvasClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (toolMode !== "text") return; // rect uses mouseup; pen has no click action
+      const pos = getCanvasCoords(e);
+      setTextPos(pos);
+      setTextInputValue("");
+    },
+    [toolMode, getCanvasCoords],
+  );
+
+  const confirmText = useCallback(() => {
+    if (!textPos || !textInputValue.trim()) {
+      setTextPos(null);
+      setTextInputValue("");
+      return;
+    }
+    saveHistory();
+    const ctx = annotationCanvasRef.current!.getContext("2d")!;
+    ctx.font = TEXT_FONT;
+    ctx.fillStyle = drawColor;
+    ctx.fillText(textInputValue, textPos.x, textPos.y);
+    setTextPos(null);
+    setTextInputValue("");
+  }, [textPos, textInputValue, drawColor, saveHistory]);
+
+  const confirmAnnotation = useCallback(() => {
+    const canvas = annotationCanvasRef.current;
+    if (!canvas) return;
+    const preview = previewCanvasRef.current;
+    if (preview) preview.getContext("2d")!.clearRect(0, 0, preview.width, preview.height);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      if (screenshotUrl) URL.revokeObjectURL(screenshotUrl);
+      setScreenshotBlob(blob);
+      setScreenshotUrl(URL.createObjectURL(blob));
+      setAnnotationMode(false);
+      setCanvasNaturalSize(null);
+      setZoom(1.0);
+      historyRef.current = [];
+      rectStartRef.current = null;
+    }, "image/png");
+  }, [screenshotUrl]);
+
+  const cancelAnnotation = useCallback(() => {
+    const preview = previewCanvasRef.current;
+    if (preview) preview.getContext("2d")!.clearRect(0, 0, preview.width, preview.height);
+    rectStartRef.current = null;
+    setAnnotationMode(false);
+    setTextPos(null);
+    setTextInputValue("");
+    setCanvasNaturalSize(null);
+    setZoom(1.0);
+    historyRef.current = [];
+  }, []);
+
+  const [copyImageStatus, setCopyImageStatus] = useState<"idle" | "ok" | "err">("idle");
+
+  const copyImage = useCallback(async () => {
+    let blobToCopy: Blob | null = null;
+
+    if (annotationMode && annotationCanvasRef.current) {
+      blobToCopy = await new Promise<Blob | null>((resolve) =>
+        annotationCanvasRef.current!.toBlob((b) => resolve(b), "image/png"),
+      );
+    } else {
+      blobToCopy = screenshotBlob;
+    }
+
+    if (!blobToCopy) return;
+
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blobToCopy }),
+      ]);
+      setCopyImageStatus("ok");
+      window.setTimeout(() => setCopyImageStatus("idle"), 2000);
+    } catch {
+      setCopyImageStatus("err");
+      window.setTimeout(() => setCopyImageStatus("idle"), 2500);
+    }
+  }, [annotationMode, screenshotBlob]);
+
+  // Initialize canvas when entering annotation mode
+  useEffect(() => {
+    if (!annotationMode || !screenshotUrl) return;
+    const canvas = annotationCanvasRef.current;
+    if (!canvas) return;
+
+    const img = new Image();
+    img.onload = () => {
+      // El blob ya tiene el banner de URL integrado (addUrlBannerToImage o stitchBrowserFrame)
+      // → el canvas replica el blob exactamente, sin superponer un segundo banner.
+      canvas.width  = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+
+      // Sync preview canvas size
+      const preview = previewCanvasRef.current;
+      if (preview) {
+        preview.width  = canvas.width;
+        preview.height = canvas.height;
+      }
+
+      // Zoom inicial tipo "object-fit: contain": entra completa sin scroll inicial.
+      // containerH: clientHeight puede ser 0 antes del primer paint → fallback a 60 % del vh.
+      const scrollEl   = canvasScrollRef.current;
+      const containerW = scrollEl && scrollEl.clientWidth  > 0 ? scrollEl.clientWidth  - 16 : canvas.width;
+      const containerH = scrollEl && scrollEl.clientHeight > 0 ? scrollEl.clientHeight - 16 : window.innerHeight * 0.60;
+      const zoomByW    = containerW / canvas.width;
+      const zoomByH    = containerH / canvas.height;
+      const fitZoom    = parseFloat(Math.min(1.0, zoomByW, zoomByH).toFixed(2));
+      setCanvasNaturalSize({ w: canvas.width, h: canvas.height });
+      setZoom(fitZoom);
+
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      historyRef.current = [];
+    };
+    img.src = screenshotUrl;
+  }, [annotationMode, screenshotUrl]);
+
+  // ── End annotation helpers ──────────────────────────────────────────
 
   function toggleEntorno(value: string) {
     setEntornosState((prev) =>
@@ -477,11 +766,6 @@ function ReviewPage() {
     <main className="review-page">
       <header>
         <h1>BrenTester — Revisar reporte</h1>
-        <p>
-          {isManual
-            ? "Grabación manual: mové los sliders para recortar el tramo que querés enviar."
-            : "Sesión: elegí qué tramo de los últimos 2 minutos querés guardar (por defecto, los últimos 10 s)."}
-        </p>
       </header>
 
       <section className="panel">
@@ -503,8 +787,164 @@ function ReviewPage() {
 
         {screenshotUrl ? (
           <div className="screenshot-block">
-            <h2>Captura de pantalla</h2>
-            <img className="screenshot" src={screenshotUrl} alt="Captura del bug" />
+            <div className="screenshot-block-header">
+              <h2>Captura de pantalla</h2>
+              <div className="screenshot-header-actions">
+                {!annotationMode && (
+                  <button type="button" className="btn-annotate" onClick={() => setAnnotationMode(true)}>
+                    <Pencil /> Anotar
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`btn-copy-image${copyImageStatus === "ok" ? " copied" : copyImageStatus === "err" ? " copy-err" : ""}`}
+                  onClick={() => void copyImage()}
+                >
+                  {copyImageStatus === "ok" ? "✔ Copiada" : copyImageStatus === "err" ? "✕ Error" : (<>
+                    <Copy /> {" "}Copiar
+                  
+                  </>)}
+                </button>
+              </div>
+            </div>
+
+            {annotationMode ? (
+              <div className="annotation-wrap">
+                <div className="annotation-toolbar">
+                  <span className="annotation-toolbar-label">Herramienta:</span>
+                  <button
+                    type="button"
+                    className={`annotation-tool-btn${toolMode === "pen" ? " active" : ""}`}
+                    onClick={() => { setToolMode("pen"); setTextPos(null); }}
+                  >
+                    <Pencil /> {" "}Fibrón
+                  </button>
+                  <button
+                    type="button"
+                    className={`annotation-tool-btn${toolMode === "text" ? " active" : ""}`}
+                    onClick={() => { setToolMode("text"); setIsDrawing(false); }}
+                  >
+                    <Type/> {" "}Texto
+                  </button>
+                  <button
+                    type="button"
+                    className={`annotation-tool-btn${toolMode === "rect" ? " active" : ""}`}
+                    onClick={() => { setToolMode("rect"); setIsDrawing(false); setTextPos(null); }}
+                    title="Rectángulo"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ verticalAlign: "middle" }}>
+                      <rect x="1.5" y="3.5" width="13" height="9" rx="1" stroke="currentColor" strokeWidth="2" fill="none" />
+                    </svg>
+                    {" "}Rect
+                  </button>
+                  <span className="annotation-toolbar-label">Color:</span>
+                  <button
+                    type="button"
+                    className={`annotation-color-btn${drawColor === "#000000" ? " active" : ""}`}
+                    style={{ background: "#000000" }}
+                    onClick={() => setDrawColor("#000000")}
+                    title="Negro"
+                  />
+                  <button
+                    type="button"
+                    className={`annotation-color-btn${drawColor === "#e11d48" ? " active" : ""}`}
+                    style={{ background: "#e11d48" }}
+                    onClick={() => setDrawColor("#e11d48")}
+                    title="Rojo"
+                  />
+                  <button type="button" className="annotation-action-btn" onClick={undoAnnotation} title="Deshacer último trazo">
+                    <Undo /> {" "}Deshacer
+                  </button>
+
+                  {/* Controles de zoom */}
+                  <div className="annotation-zoom-group">
+                    <button
+                      type="button"
+                      className="annotation-zoom-btn"
+                      onClick={zoomOut}
+                      disabled={zoom <= ZOOM_MIN}
+                      title={`Alejar (mín ${ZOOM_MIN * 100}%)`}
+                    >−</button>
+                    <span className="annotation-zoom-label">{Math.round(zoom * 100)}%</span>
+                    <button
+                      type="button"
+                      className="annotation-zoom-btn"
+                      onClick={zoomIn}
+                      disabled={zoom >= ZOOM_MAX}
+                      title={`Acercar (máx ${ZOOM_MAX * 100}%)`}
+                    >+</button>
+                  </div>
+
+                  <div className="annotation-toolbar-spacer" />
+                  <button type="button" className="annotation-action-btn confirm" onClick={confirmAnnotation}>
+                    <Check /> {" "}Confirmar
+                  </button>
+                  <button type="button" className="annotation-action-btn cancel" onClick={cancelAnnotation}>
+                    <X /> {" "}Cancelar
+                  </button>
+                </div>
+
+                <div className="annotation-canvas-scroll" ref={canvasScrollRef}>
+                <div className="annotation-canvas-wrap">
+                  {/*
+                    CSS width/height = canvasNaturalSize * zoom.
+                    El canvas attribute (width/height) siempre es la resolución lógica completa.
+                    getBoundingClientRect() devolverá el tamaño CSS → getCanvasCoords corrige
+                    automáticamente las coordenadas del mouse sin ningún cambio extra.
+                  */}
+                  <canvas
+                    ref={annotationCanvasRef}
+                    className={`annotation-canvas annotation-cursor-${toolMode}`}
+                    style={canvasNaturalSize ? {
+                      width:  `${Math.round(canvasNaturalSize.w * zoom)}px`,
+                      height: `${Math.round(canvasNaturalSize.h * zoom)}px`,
+                    } : undefined}
+                    onMouseDown={handleCanvasMouseDown}
+                    onMouseMove={handleCanvasMouseMove}
+                    onMouseUp={handleCanvasMouseUp}
+                    onMouseLeave={abortDrawing}
+                    onClick={handleCanvasClick}
+                  />
+                  {/* Preview canvas: mismas dimensiones visuales, pointer-events: none */}
+                  <canvas
+                    ref={previewCanvasRef}
+                    className="annotation-canvas annotation-canvas-preview"
+                    style={canvasNaturalSize ? {
+                      width:  `${Math.round(canvasNaturalSize.w * zoom)}px`,
+                      height: `${Math.round(canvasNaturalSize.h * zoom)}px`,
+                    } : undefined}
+                    aria-hidden="true"
+                  />
+                  {textPos && (
+                    <div
+                      className="annotation-text-input-wrap"
+                      style={{
+                        left: `${(textPos.x / (annotationCanvasRef.current?.width ?? 1)) * 100}%`,
+                        top: `${(textPos.y / (annotationCanvasRef.current?.height ?? 1)) * 100}%`,
+                      }}
+                    >
+                      <input
+                        autoFocus
+                        type="text"
+                        className="annotation-text-input"
+                        value={textInputValue}
+                        onChange={(e) => setTextInputValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") confirmText();
+                          if (e.key === "Escape") { setTextPos(null); setTextInputValue(""); }
+                        }}
+                        placeholder="Escribí y presioná Enter"
+                      />
+                    </div>
+                  )}
+                </div>
+                </div> {/* annotation-canvas-scroll */}
+              </div>
+            ) : (
+              <div className="screenshot-scroll">
+                <img className="screenshot" src={screenshotUrl} alt="Captura del bug" />
+              </div>
+            )}
           </div>
         ) : null}
 

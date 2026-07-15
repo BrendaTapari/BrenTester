@@ -16,4 +16,7 @@ export const MANUAL_VIDEO_BITRATE = 1_500_000;
 /** Máximo de eventos de red guardados en memoria. */
 export const MAX_NETWORK_ENTRIES = 80;
 
+/** Mínimo de pasos que siempre se conservan, aunque sean más viejos que la ventana. */
+export const BUFFER_MIN_STEPS = 15;
+
 export type RecordingMode = "buffer" | "manual";

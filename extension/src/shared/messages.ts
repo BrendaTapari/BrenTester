@@ -3,6 +3,7 @@ export type { ScreenshotMode };
 
 export const MessageType = {
   GET_STATUS: "GET_STATUS",
+  CAPTURE_FULL_PAGE: "CAPTURE_FULL_PAGE",
   START_BUFFER_SESSION: "START_BUFFER_SESSION",
   START_MANUAL_RECORDING: "START_MANUAL_RECORDING",
   STOP_RECORDING: "STOP_RECORDING",
@@ -26,12 +27,14 @@ export const MessageType = {
   OFFSCREEN_FORCE_STOP: "OFFSCREEN_FORCE_STOP",
   OFFSCREEN_RECORDING_READY: "OFFSCREEN_RECORDING_READY",
   OFFSCREEN_RECORDING_COMPLETE: "OFFSCREEN_RECORDING_COMPLETE",
+  OFFSCREEN_CAPTURE_FRAME: "OFFSCREEN_CAPTURE_FRAME",
 } as const;
 
 export type MessageTypeValue = (typeof MessageType)[keyof typeof MessageType];
 
 export type RuntimeMessage =
   | { type: typeof MessageType.GET_STATUS }
+  | { type: typeof MessageType.CAPTURE_FULL_PAGE }
   | { type: typeof MessageType.START_BUFFER_SESSION }
   | { type: typeof MessageType.START_MANUAL_RECORDING }
   | { type: typeof MessageType.STOP_RECORDING }
@@ -66,6 +69,7 @@ export type RuntimeMessage =
   | { type: typeof MessageType.OFFSCREEN_GET_BUFFER; sessionId: string }
   | { type: typeof MessageType.OFFSCREEN_GET_STATUS }
   | { type: typeof MessageType.OFFSCREEN_FORCE_STOP }
+  | { type: typeof MessageType.OFFSCREEN_CAPTURE_FRAME }
   | { type: typeof MessageType.OFFSCREEN_RECORDING_READY; sessionId: string }
   | {
       type: typeof MessageType.OFFSCREEN_RECORDING_COMPLETE;

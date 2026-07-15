@@ -45,15 +45,66 @@ body {
   background: black;
 }
 
-.screenshot-block h2 {
-  margin: 0 0 8px;
+.screenshot-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.screenshot-block-header h2 {
+  margin: 0;
   font-size: 1rem;
 }
 
+.screenshot-header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+button.btn-annotate {
+  background: #0e7490;
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+button.btn-annotate svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+button.btn-copy-image {
+  background: #334155;
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+button.btn-copy-image svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+button.btn-copy-image.copied {
+  background: #16a34a;
+}
+
+button.btn-copy-image.copy-err {
+  background: #7f1d1d;
+}
+
 .screenshot {
+  /* La imagen se ajusta al ancho del contenedor y hace scroll vertical */
+  display: block;
   width: 100%;
-  max-height: 420px;
-  object-fit: contain;
+  height: auto;
   border-radius: 8px;
   border: 1px solid #1e293b;
   background: #020617;
@@ -298,6 +349,211 @@ button.btn-aceptar {
   margin-top: 8px;
 }
 
+/* Íconos Lucide dentro de los botones del toolbar de anotación */
+.annotation-toolbar button svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ── Annotation editor ─────────────────────────────── */
+.annotation-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.annotation-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.annotation-toolbar-label {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-right: 2px;
+}
+
+.annotation-toolbar-spacer {
+  flex: 1;
+}
+
+button.annotation-tool-btn {
+  background: #334155;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+button.annotation-tool-btn.active {
+  background: #0e7490;
+  outline: 2px solid #22d3ee;
+  outline-offset: 1px;
+}
+
+button.annotation-color-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  padding: 0;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+button.annotation-color-btn.active {
+  border-color: #e2e8f0;
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+button.annotation-action-btn {
+  background: #334155;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+button.annotation-action-btn.confirm {
+  background: #16a34a;
+}
+
+button.annotation-action-btn.cancel {
+  background: #7f1d1d;
+}
+
+.annotation-zoom-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #0f172a;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+button.annotation-zoom-btn {
+  background: #334155;
+  color: #e2e8f0;
+  border: none;
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+button.annotation-zoom-btn:hover {
+  background: #475569;
+}
+
+button.annotation-zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.annotation-zoom-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  min-width: 36px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scroll container para el canvas de anotación */
+.annotation-canvas-scroll {
+  overflow: auto;
+  max-height: 62vh;
+  min-height: 120px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f172a;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #1e293b;
+  padding: 6px;
+}
+
+/* Scroll container para la imagen estática (vista sin anotación) */
+.screenshot-scroll {
+  overflow: auto;
+  max-height: 62vh;
+  min-height: 80px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f172a;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #1e293b;
+}
+
+.annotation-canvas-wrap {
+  position: relative;
+  /* inline-block: el div se adapta al tamaño natural del canvas */
+  display: inline-block;
+  line-height: 0;
+}
+
+.annotation-canvas {
+  /* Sin width/height CSS → el canvas se renderiza 1:1 en su resolución real */
+  display: block;
+  border-radius: 0;
+  border: 1px solid #334155;
+  display: block;
+}
+
+.annotation-cursor-pen {
+  cursor: crosshair;
+}
+
+.annotation-cursor-text {
+  cursor: text;
+}
+
+.annotation-cursor-rect {
+  cursor: crosshair;
+}
+
+.annotation-canvas-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.annotation-text-input-wrap {
+  position: absolute;
+  transform: translateY(-50%);
+  pointer-events: all;
+}
+
+.annotation-text-input {
+  background: rgba(2, 6, 23, 0.85);
+  border: 1px solid #60a5fa;
+  border-radius: 4px;
+  color: #e2e8f0;
+  font: bold 14px sans-serif;
+  padding: 4px 8px;
+  outline: none;
+  min-width: 180px;
+}
+
 .entorno-checkboxes {
   display: flex;
   flex-wrap: wrap;
@@ -317,4 +573,10 @@ button.btn-aceptar {
   height: 16px;
   cursor: pointer;
   accent-color: #7c3aed;
+}
+
+.icon {
+  width: 5px;
+  height: 5px;
+  vertical-align: middle;
 }

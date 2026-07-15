@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { MessageType } from "../shared/messages";
 import type { ScreenshotMode } from "../shared/types";
 import "./popup.css";
+import { Fullscreen, Video, PictureInPicture } from "lucide-react";
 
 interface StatusResponse {
   isRecording: boolean;
@@ -98,6 +99,21 @@ function Popup() {
     }
   };
 
+  const handleCaptureFullPage = async () => {
+    try {
+      const response = await sendRuntimeMessage<ActionResponse>({
+        type: MessageType.CAPTURE_FULL_PAGE,
+      });
+      if (!response.ok) {
+        console.error(response.message ?? "No se pudo capturar la página completa.");
+      }
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      window.close();
+    }
+  };
+
   const handleCaptureBug = async (screenshotMode: ScreenshotMode) => {
     try {
       const response = await sendRuntimeMessage<ActionResponse>({
@@ -186,12 +202,13 @@ function Popup() {
           Iniciar sesión
         </button>
         <button type="button" onClick={handleStartManual} disabled={isBusy || isRecording}>
+          <Video />
           Grabar video
         </button>
       </div>
 
       <div className="capture-group">
-        <p className="capture-label">Capturar bug (foto + logs + pasos):</p>
+        <p className="capture-label">Capturar bug:</p>
         <button
           type="button"
           className="capture"
@@ -206,7 +223,21 @@ function Popup() {
           onClick={() => handleCaptureBug("region")}
           disabled={isBusy || !isRecording}
         >
+          <PictureInPicture />
           Foto de un sector
+        </button>
+      </div>
+
+      <div className="capture-group">
+        <p className="capture-label">Captura de página completa (con URL):</p>
+        <button
+          type="button"
+          className="capture fullpage"
+          onClick={handleCaptureFullPage}
+          disabled={isBusy}
+        >
+          <Fullscreen />
+          Captura completa
         </button>
       </div>
 
