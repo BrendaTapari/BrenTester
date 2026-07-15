@@ -20,6 +20,15 @@ body {
   gap: 20px;
 }
 
+/* Al anotar: un poco más ancho y corrido a la izquierda (sin tocar el zoom) */
+.review-page--annotating {
+  max-width: 1120px;
+  margin-left: max(16px, calc(50% - 600px));
+  margin-right: auto;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
 .review-page h1 {
   margin: 0 0 8px;
 }
@@ -479,7 +488,7 @@ button.annotation-zoom-btn:disabled {
 /* Scroll container para el canvas de anotación */
 .annotation-canvas-scroll {
   overflow: auto;
-  max-height: 62vh;
+  max-height: 68vh;
   min-height: 120px;
   border: 1px solid #334155;
   border-radius: 8px;

@@ -763,7 +763,7 @@ function ReviewPage() {
   const isManual = session?.recordingMode === "manual";
 
   return (
-    <main className="review-page">
+    <main className={`review-page${annotationMode ? " review-page--annotating" : ""}`}>
       <header>
         <h1>BrenTester — Revisar reporte</h1>
       </header>
